@@ -1,0 +1,511 @@
+\documentclass[a4paper,10pt]{thesis}
+
+% macros
+\newcommand{\software}{\texttt{vaPLA}}
+\newcommand{\softwareS}{\software\born}
+\newcommand{\softwareSmaller}{\software$\le\!\!\texttt{3}$}
+\newcommand{\softwareBigger}{\software$>\!\!\texttt{3}$}
+\newcommand{\softwareSSmaller}{\software\born$\le\!\!\texttt{3}$}
+\newcommand{\softwareSBigger}{\software\born$>\!\!\texttt{3}$}
+% math things
+\newcommand{\died}{\texttt{\textdagger}}
+\newcommand{\born}{\texttt{*}}
+\newcommand{\dotted}{^{\texttt{'}}}
+\newcommand{\pprec}{\mathrel{\prec\!\!\!\!\prec}}
+% text macros
+\newcommand{\gL}{$global\texttt{-}left$}
+\newcommand{\gR}{$global\texttt{-}right$}
+\newcommand{\lL}{$local\texttt{-}left$}
+\newcommand{\lR}{$local\texttt{-}right$}
+\newcommand{\pP}{$gap\texttt{-}pattern$}
+\newcommand{\iP}{$index\texttt{-}pattern$}
+
+
+% document parameters
+\title{A General Framework for Exact Partially Local Alignments}
+\author{Falco Kirchner}
+
+% setting up parameters
+\name{Falco}{Kirchner}
+\matriculationnumber{3673579}
+\address{Nürnberger Straße 13 \\ 04103 Leipzig}
+\email{flckirchner@gmail.com}
+\thesistype{Master Thesis}
+\thesistitle{Partially Local Multi-Way Alignments}
+\university{Universität Leipzig}
+\logoofuniversity{logo.jpg}
+\degree{Master of Science}
+\field{Bioinformatics}
+\faculty{Fakultät für Mathematik und Informatik}
+\examinerA{Prof. Peter F. Stadler}
+\examinerB{Dr. Christian Höner zu Siederdissen}
+\duedate{\today}
+
+\begin{document}
+\makeCover
+\makeTitlePage
+\makeAbstractPage{Multiple sequence alignments are a crucial intermediate step in a plethora of data analysis workflows in computational biology. While multiple sequence alignments are usually constructed with the help of heuristic approximations, while pairwise alignments are typically computed by exact dynamic programming algorithms. In the pairwise case, local, global, and semi-global alignments are distinguished, with key applications in pattern discovery, gene comparison, and homology search, respectively. With increasing computing power, exact alignments of triples and even quadruples of sequences have become feasible and recent applications e.g.\ in the context of breakpoint discovery have shown that mixed local/global multiple alignments can be of practical interest. \software{} is the first implementation of partially local multiple alignments of a few sequences and provides convenient access to this family of specialized alignment algorithms.}
+\makeTableOfFigures
+\makeTableOfTables
+\makeTableOfEquations
+\makeTableOfContents
+
+\content{
+  \newSection{introduction}{
+  Global multiple alignments are typically constructed as intermediate data structure to support a comparative or evolutionary analysis of a set of homologous DNA, RNA, or protein sequences. Alignment problems are naturally treated as optimization problems: a scoring function evaluates the similarities in an alignment column and/or the pattern of gaps. Multiple alignments are almost exclusively treated globally, that is, all parts of the input sequence is scored. The notion of ``local multiple alignments'' refer to short, usually gapless patterns \citeNote{Lukashin:99,Blanchette:02} arising in phylogenetic footprinting and related pattern discovery problems \citeNote{Tabei:09}.
+  \gapSmall
+  Local variants of sequence alignment, on the hand, play an important role in pairwise alignments. Local alignments, i.e., maximally similar substrings within pairs of longer sequences, are a natural way to identify conserved domains.  The semi-global variant of pairwise alignment, in which one sequence, usually called ``query'', is expected to appear as approximate substring of a larger ``subject'', again is a natural formalization of homology search, implemented e.g.\ in \texttt{gotohscan} \citeNote{Hertel:09a}.  Overlap alignments \citeNote{Jones:04} allowing free end gaps on all sequences have applications e.g.\ in sequence assembly \citeNote{Rausch:09}. The identification of conserved sequence elements, such as clusters of transcription factor binding sites or splice enhancers, has become a key task in comparative genomics, often referred to as phylogenetic footprinting. It can be formalized as a local multiple alignment problem. But until recently, the generalization of these variants to more than two sequences has received very little attention. 
+  \gapSmall
+  Pairwise alignment problems can be solved exactly for a wide range of cost models by means of dynamic programming. In fact, the algorithms of \citep{Needleman:70} for global alignments, \citeNote{Smith:81} for local alignments, and the extension to affine gap costs by \citep{Gotoh:82} are among the early, paradigmatic example of dynamic programming. The basic recursive structure is readily extended to more than two input sequences \citeNote{Carillo:88,Lipman:89}; the time and space complexity, however, grows exponentially with the number of sequences. Exact dynamic programming solutions thus have been used in practice only for 3-way \citeNote{Gotoh:86,Dewey:01,Konagurthu:04,Kruspe:07a} or 4-way \citeNote{Steiner:11a} alignments. Since multiple sequence alignment problems (for arbitrary numbers of input sequences $X$) are typically NP-hard \citeNote{Kececioglu:93,Wang:94,Bonizzoni:01,Just:01,Manthey:03,Elias:06}, they are solved by heuristic approximation algorithms, see \citep{Baichoo:17} for a recent review. But with the advances in available computing power, the exact dynamic programming algorithms have become feasible beyond pairwise alignments. The basic recursion for the simultaneous alignment of $N$ sequences is a straightforward generalization of the already known algorithms.
+  \gapSmall
+  As the exact 3-way and 4-way alignments have increased in usage, variants of the problem that combine local and global alignments have been proposed for specialized application scenarios. \citeNote{AlArab:17a} considered the fate of sequences in the wake of mitochondrial genome rearrangements by simultaneously comparing the rearranged region to both of its ancestors. This approach made it possible to distinguish tandem duplication random loss (TDRL) from reversal or transposition events. This specialized 3-way alignment problem suggested the need to develop a general theoretical framework for alignments that consider part of their input local and part global. As shown by \citep{Retzlaff:18a} it is possible -- and convenient -- to allow the user determine separately for each input sequence and each of its ends, whether it is to be treated as global, i.e., deletions of a prefix or a suffix are penalized, or as local, allowing the omission of prefixes or suffixes at not cost. But also in other application domains, like comparative linguistics, exact multi-way alignments gain increasingly more interest, where algorithms can be aimed at cross-language comparison problems to infer a cross-linguistic kind of stemming serving as the first step to obtain a proto form. We will briefly outline the theoretical results in the following section. While the presentation by \citet{Retzlaff:18a} is purely theoretical and did not supply a reference implementation, the present contribution closes this gap.
+  \gapBig
+  Beyond the following theoretical introduction, this work is about the implementation of two variants of the pledged partially local multiple sequence alignment algorithm. Furthermore, they will be compared to themselves and other alignment tools and benchmarked against them.
+  }
+  \newpage
+  \newSection{theory}{
+    This section starts with a very short introduction of the theoretical foundation of alignments. The Explanations of common global alignments and the methods used to achieve local alignments until now shall pave the way to the understanding of partially local alignments. This introduction is followed by definitions and further explanations of the new approach of locality and how it is reached using the new theory. For that, a fairly new concept of $alignment~states$ and graphs, built on them, is introduced to map the activation and deactivation of sequences at the beginning or end of the alignment, respectively. Variable starting and ending points of local sequences are core of this theory and implementation.
+    \gapBig
+    \newSubSection{Alignments at All}{
+      Simply put, a global multiple string alignment (MSA) is a rectangular arrangement of the characters that preserves the order of characters in each string. The order of strings however, which are the rows of the alignment, is discretionary and does not affect the resulting score of the alignment. In order to get an optimal alignment score, these rows are then stretched independently by inserting gap characters in such a way that similarities between sequences are maximized \citeNote{Retzlaff:18a}.
+      \newFigureOwn{
+      \texttt{%
+        Plasmodium falciparum~~~~~~~~ GATGTTTGCTCC-TTATCA\\ 
+        Babesia bovis~~~~~~~~~~~~~~~~ GATGTC-GCTCCACTCTCC\\
+        Cryptosporium parvum~~~~~~~~~ GATGTT-GCTCCATTATCA\\
+        Cryptosporium canis~~~~~~~~~~ GATGTT-GCCCCACTGTCC\\
+        Cryptosporium baileyi~~~~~~~~ GATGTT-GCTCCATTATCA\\
+        Cryptosporium felis~~~~~~~~~~ GATGTT-GCTCCTTTGTCT\\
+        Cryptosporium wrairi~~~~~~~~~ GATGTT-GCTCCATTATCA\\
+        Cryptosporium saurophilum~~~~ GATGTT-GCTCCTTTGTCT\\
+        Cryptosporium meleagridis~~~~ GATGTT-GCTCCATTATCA\\}
+      }
+      {0.9\columnwidth}
+      {Example MSA}
+      {Example of a partial multiple string alignment of the Hsp70 gene of nine different species of the phylum Apicomplexa. Each amino acid is represented by a single character and gaps are indicated as - signs as usual in the bioinformatics literature.}%
+      %
+      Figure \ref{fig:Example MSA} shows a section of an alignment of DNA sequences from nine different species \citeNote{Morrison:15}. It is apparent, that unlike characters in the same column do not have to be shifted in any case to resolve miss-matches. Sometimes, keeping inhomogeneous alignment columns results in a greater overall alignment score than introducing gaps would do. This depends on the used scoring table, the number of matching and miss-matching characters at this column and the remaining sequence parts. Decision making at this point, even for two-way alignments, is far from intuitive and most commonly approached by means of dynamic programming. Several variants of this problem have been shown to be NP-hard.\footnote{\cite{Bonizzoni:01}, \cite{Elias:06}, \cite{Just:01}} While two-way alignments can be solved exactly, solutions for multi-way alignments are often using heuristic approximation algorithms \citeNote{Baichoo:17} and only rely on exact results of pairwise alignments of some or all pairs of their sequences. Such two-way alignment problems are usually solved with the help of a simple dynamic programming recursions known as the Needleman–Wunsch algorithm \citeNote{Needleman:70} or its variants. There are many conceptually different strategies to combine pairwise alignments to MSAs, such as progressive approaches, which combine pairwise alignments usually in a tree-like fashion \citeNote{Hogeweg:84}, like \texttt{ClustalW} \citeNote{Sievers:18}, \texttt{MAFFT} \citeNote{Katoh:05} and \texttt{T-Coffee} \citeNote{Notredame:00}; iterative methods, which employ additional optimization steps, like \texttt{dialign} \citeNote{Morgenstern:98}; and consensus methods, like \texttt{M-COFFEE} \citeNote{AlAit:13} or \texttt{MergeAlign} \citeNote{Collingridge:12}, combine various alignments using voting-like procedures.
+      \gapBig
+      Besides the many ways of approximating accurate multiple sequence alignments, exact global N-way MSAs can be generated with a straightforward generalization of the Needleman–Wunsch algorithm. This approach is able to handle a wide range of scoring models, albeit with space and time requirements scaling exponentially with the number sequences $N$. \citeNote{Carillo:88} 
+      Hereinafter, the focus is on this class, since the implementation, which is introduced later, is based on it. 
+      \gapSmall
+      The Needleman-Wunsch algorithm was originally designed for two-way alignments, as they are accessible much more thrifty in the need of time and space requirements than MSAs. For these pairwise alignment problems there is a clear distinction between global, local, and semi-local versions (Fig. \ref{fig:Types of Alignments}), which all can be solved by variants of the same basis dynamic programming algorithms: the Needleman–Wunsch algorithm \citeNote{Needleman:70} for the global problem and Smith–Waterman algorithm \citeNote{Smith:81} for the local version.
+      \newFigure{figures/types_of_alignments1.eps}
+      {0.95\textwidth}
+      {Types of Alignments}
+      {The four basic types of pairwise alignments of sequences of lengths $n_1$ and $n_2$. The depiction of global alignments is shown at the top left, locacl alignments at the top right; semi-global and overhang alignments are featured below left and right. The variables $p_1$, $p_2$ and $q_1$, $q_2$ denote the local start and end positions, respectively. They $1 \leq p_i \leq q_i \leq n_i$ for $i \in \{1,2\}$}%
+      %
+      Both algorithms use the same key recursion step, that compares the scores of extensions of shorter alignments by a (mis)match, insertion, or deletion (Equ. \ref{equ:Key Recursion}), by using a scoring (\emph{memoization}) table $S$ \citeNote{Retzlaff:18a}. For pairwise alignments that means, that for each alignment column either both characters of the two sequences are aligned, resulting in a match or missmatch (first case in Equ. \ref{equ:Key Recursion}), or only one character is aligned, resulting in an introduced gap for the other sequence (second and third case in Equ. \ref{equ:Key Recursion}).
+      \gapSmall
+      In the local case, however, characters of leading respectively ending parts of one sequence may not only be (miss)matched, but possibly also belong to a prefix or suffix that remains utterly unaligned. This is beyond Equ. \ref{equ:Key Recursion} and translates to an extra choice in the dynamic programming recursion, such that one computes $max(R(i,j),0)$. In addition, The Needleman–Wunsch algorithm for global and semi-gloabl alignments, respectively, and the Smith-Waterman algorithm for local aligning only differ in the initialization and the entry of the S-matrix that harbours the final result. The scoring table $S$ is initialized as shown in table \ref{tab:Initialization of Scoring Tables}.   
+      \newTable{
+        \begin{tabular}{ | C{4cm} | C{4cm} | C{4cm} | }
+        \hline
+          global & semi-global & local \\ \hline 
+          $S_{0,0}=0$ & $S_{0,0}=0$ & $S_{0,0}=0$ \\
+          $S_{i,0}=S_{i-1,0}+\gamma$ & $S_{i,0}=S_{i-1,0}+\gamma$ & $S_{i,0}=0~for~i<i^\born$ \\
+          $S_{0,j}=S_{0,j-1}+\gamma$ & $S_{0,j}=0~for~j<j^\born$ & $S_{0,j}=0~for~j<j^\born$ \\
+        \hline
+        \end{tabular}
+      }{Initialization of Scoring Tables}{The initialization of the scoring matrix recursion for global, semi-global and local alignment methods. The variables $0 \leq i^\born,j^\born \leq n$ denote the smallest indices of aligned characters or in other words the first indices apart from the unaligned prefixes, that is at the first match of both the sequences. $S$ and $\gamma$ are the scoring table and the gap score.}%
+      %
+      \newFormula{
+        R(i,j) = \max\begin{cases}
+        S_{i-1, j-1} + m(i,j) \\
+        S_{i-1, j} + \gamma \\
+        S_{i, j-1} + \gamma
+      \end{cases}
+      }
+      {Key Recursion}
+      {The key recursion step of both the Needleman-Wunsch and the Smith-Watermann algorithm. The variables $S$ and $\gamma$ denote the scoring table and the gap score; $m(i,j)$ returns the match score for the positions $i$ and $j$.}%
+      %
+      So for local alignments -- to enable the possibility of unaligned suffixes -- the final alignment score is not necessarily found at the bottom right of the scoring table, but is the maximal score $S_{i^\died,j^\died} = max_{i,j}(S_{i,j})$ of the whole table. Characters beyond these indices $i^\died$ and $j^\died$ are then considered as unaligned. Unaligned sequence parts do not only occur in entirely local alignment scenarios but also in semi-global and overhang alignments, where the corresponding algorithms again only differ in the initialization and the final entry of the scoring matrix $S$. For a more generalized view, partially local alignments will be introduced, which summarizes the stated alignment types and shows them from a slightly different vision. 
+    }
+    \newSubSection{Partially Local Alignments}{
+      ``Despite the importance of alignment problems in computational biology, and the need to distinguish global and local versions of the problem, there does not seem to be an accessible theory of partially local alignments beyond the pairwise case.", \citet{Retzlaff:18a} stated.  Further, even the notion of ``local multiple sequence alignment", that is typically found in the literature, does not refer to general local MSAs, but only stands for the identification of short, conserved, usually gap free patterns \citeNote{Blanchette:02} \citeNote{Lukashin:99}. Known as phylogenetic footprinting, where substrings with a given minimal length in a minimal number of input sequences are found, such that the global alignment score of these subsequences is maximized, this problem is of important practical use in computational biology. But there are various alignment problems and some of them even involve a complex mixture of local and global alignments.
+      \gapSmall
+      Duplication or loss of sequence, for instance, potentially happens in mitochondrial genome rearrangements near the breakpoint. The alignment is then considered to contain one reference sequence and two shorter sequences close to the breakpoint \citeNote{AlArab:17a}, as pictured in figure \ref{fig:Example 3-Way Alignment}. Before and after the breakpoint, one of the derived sequences are unrelated to the reference. Thus they are treated as $local$ on one side and $global$ (anchored) at the other.
+      \gapSmall
+      Heuristical versions of aligning, unlike exact alignment methods, have a sizeable history in computational biology. Much more swifty and precise enough, they come in very handy for many alignment problems. However, the available computational power has increased. Thus exact dynamic programming algorithms to align more than two sequences have become feasible. ``The basic recursion for the simultaneous alignment of $N$ sequences is straightforward generalization of recursion [$R$ (see Equ. \ref{equ:Key Recursion})] and simply enumerates all $2N-1$ possible patterns of gaps in the last column of a alignment ending at position $i_n$ the $p_{th}$ sequences", so \citeauthor{Retzlaff:18a}. And even now, in spite of the extra effort, 3-way alignments at least occasionally find entrance into practical applications in computational biology.\footref{ftn:Retzlaff:18a:\thepage} Moreover, 4-way aligning has proven to be useful in computational linguistics to compare words from related natural languages. There, 4-way alignments are feasible owing to the short sequence length. Besides the fact that (global) exact multi sequence alignments are rarely explored, also most of the probabilistic 3-way and 4-way alignment algorithms were designed with a very specific application in mind and made no attempt to map the host of mixed global and local alignment problems. Accordingly, a general approach of partially local aligning would be a major improvement.
+      \newSubSubSection{Localities and States}{
+        Until here, semi-global and overhang alignments where seen as alignment problems with global sequences, although may only one sequences is aligned at the start and the end of the alignment, namely with no corresponding miss(matching) character or gap, while the other one remains unaligned. Subsequently however, sequences are only considered as $global$, if they start to align at the very first column of the alignment and stay aligned up to its last. Hence, sequences are considered as $local$, if they do not stay aligned over the whole alignment. Furthermore, locality is not a feature of the whole sequence anymore, but rather of its ends. This means that an utterly global sequence, as seen before, is global at its left side (\gL{}) and global at its right side (\gR{}), as well as a totally local sequence is local at both of its sides. Having said this, one sequences can be both $local$ and $global$, at its respective ends. Also, local starts and ends of sequences do not have to start or end with the first/last character of the sequence. This variability of locality, starting and ending points of local sequences enclose a wide array of alignment scenarios.  
+        \newFigure{figures/types_of_alignments2.eps}
+        {0.95\textwidth}
+        {Types of Partially Local Alignments}
+        {A schema of for partially local alignment scenarios, comparable to the previously shown alignment types in Fig. \ref{fig:Types of Alignments}. Completely global and local alignments are illustrated at the top left and right, partially local alignments are displayed below. Filled dots stand for global ends while empty versions of it stand for local ends of sequences. The variables $p_1$, $p_2$ and $q_1$, $q_2$ denote the local start and end positions, respectively. They $1 \leq p_i \leq q_i \leq n_i$ for $i \in \{1,2\}$}%
+        %
+        Since only prefixes or suffixes may remain unaligned, the transition from unaligned to aligned can occur only once per sequence, much like the transition from aligned to unaligned at the end of the aligned part of a sequence. To reference this later, a $sequence~state$ is introduced, such that each sequence is either $inactive$, $active$ or $dead$ at a specific column of the alignment. This state may changes from alignment column to alignment column, but only from $inactive$ to $active$ and from $active$ to $done$. Therefore one sequence is $inactive$ if it is not aligned yet, $active$ when it is aligning right now and $dead$ if it has been aligning and is not aligning anymore. Every \lL{} sequence then starts unaligned, hence in the $inactive$ state and may becomes $active$ even possibly at the first column of the alignment as it starts to be aligned, or dwells outright unaligned. Each \lR{} sequence, if it has been activated, stays $active$ up to a maximum of the last column of the alignment, where then every \lR{} becomes $dead$ at the latest. 
+        \newFigure{figures/3-way_msa_example.eps}
+        {0.5\textwidth}
+        {Example 3-Way Alignment}
+        {A multi sequence alignment of three sequences. The first one is totally global, the second one is local at the right side and the lowest one is local at the left side. That is schematic representation of a breakpoint alignment with one global reference (1), a prefix (2) and a suffix (3).}%
+        %
+        Additionally to the $sequence~state$, an $alignment~state$ can be derived from it, such that at each column of the alignment its state is a tuple $(A,D)$ of two sets. Namely the set of all $active$ sequences and the set of all $dead$ sequences. There is no need to note the set of all $inactive$ sequences $I$, since $I=X\setminus\{A \cup D\}$, where $X$ is the set of all the sequences. In the example of figure \ref{fig:Example 3-Way Alignment} \citeNote{Retzlaff:18a} the state fot he alignment changes two times. It starts with $(\{1,2\}\{\})$, changes to $(\{1,2,3\}\{\})$ as the third sequence becomes active and then switches to $(\{1,3\}\{2\})$ when the second sequence died. Because the $state~of~a~sequence$ can only alter in the mentioned way ($I \rightarrow A \rightarrow D$), a partial order of $alignment~states$ results (Equ. \ref{equ:Partial Order of Alignment States}) \citeNote{Retzlaff:18a}. According to the behavior of $sequence~states$, one state is previous to another, if the following state contains at least the same sequences of the union of the $active$- and $dead$-set of the previous state, since no sequence can leave this union, only inactive sequences could join in. The same relates to the set of $dead$ sequences by it self - no sequence can leave it, only active ones could join it. In other words, one $alignment-state$ is previous to another state, if it appears $earlier$ in the alignment, that is left-hand of the other state.
+        \newFormula{
+          (A\dotted,D\dotted)\preceq(A,D) ~~ \iff ~~ A\dotted \cup D\dotted \subseteq A \cup D ~~and~~ D\dotted \subseteq D
+        }
+        {Partial Order of Alignment States}
+        {The partial order of $alignment~states$, leveraging on the behavior of $sequence~states$. The $alignment~state$ $(A\dotted,D\dotted)$ is previous to the state $(A,D)$, when it appears $earlier$ in the alignment, that is at a lower index of alignment columns.}%
+        %
+        To take this further, not only a partial order is derivable. The properties of immediate predecessors of $alignment~states$, basing on the way $sequence~states$ change as well, are a useful notion (Equ. \ref{equ:The Properties of Immediate Predecessors of Alignment States}). One state is an immediate predecessor of its subsequent state if only one sequence has changed. Due to the mentioned alteration of $sequence~states$, only two options: one sequence changes from $inactive$ to $active$, or one $active$ sequence becomes $dead$.
+        \newFormula{
+          (A\dotted,D\dotted) \pprec (A,D) ~~ \iff ~~ \begin{cases}
+            exactly~one~I \rightarrow A~change ~~ or \\
+            exactly~one~A \rightarrow D~change
+          \end{cases}
+        }
+        {The Properties of Immediate Predecessors of Alignment States}
+        {The $alignment~state$ $(A\dotted,D\dotted)$ is the immediate predecessor of the state $(A,D)$ if only one sequence has changed its state.}%
+        %
+        Given three sequences, for example, one is totally $global$, the second one is \gL{} and \lR{}, and the last one is \lL{} and \gR{}. Then these three sequences can be aligned in three different (schematic) ways, depending on whether the second sequence dies before the third one starts or vice versa (Fig. \ref{fig:Ways of Aligning}). Thus, the $alignment~state$ also changes in varying ways. As there are two \gL{} sequences and the third one is \lL{}, the alignment always starts in the initial state $(\{1,2\},\{\})$, where every \gL{} sequences is $active$ and every \lL{} sequences is $inactive$. According to that, there is $always$ only one initial state. The final state is found analogically. There, every \gR{} sequences is $active$ and every \lR{} sequences is $dead$, that is $(\{1,3\}\{2\})$ in this example. Where alignments differ, is how the transit from the initial state through intermediate states to the final state. One way to do this is shown in the upper left corner of figure \ref{fig:Ways of Aligning}. The alignment starts with the initial state, then passes to the intermediate state $(\{1,2,3\}\{\})$ end ends in the final state. This transition is pictured by the bottom path of the graph in fig \ref{fig:Ways of Aligning}. The other way is charted below the first example and depicted by the upper path of the graph. This graph, aggregating all possible $alignment~states$ and state transitions, is called the $hasse~graph$.
+        \newFigure{figures/ways_of_aligning.eps}
+        {0.95\textwidth}
+        {Ways of Aligning}
+        {Different possibilities of aligning emerge from local edges of sequences. In this example, the three given sequences open up four possible $alignment~states$ and two ways to transit from the initial state to the final state. Below the delineated alignment schemes is the $hasse~graph$, that shows all possible states and state changes. Initial states are illustrated with an incoming arrow and final states are bordered.}%
+        %
+        The illustration on the left side of figure \ref{fig:Ways of Aligning} is a special case of the first one. This alignment, again, starts in the initial state, but then changes immediately, before the first alignment column passed by, to the immediate state $(\{1,2,3\}\{\})$. It stays in this state until it has reached the last alignment column, where every \lR{} sequence dies, so that it ends properly in the final state. In other words: this alignment - at least if the local sequence parts start and end with their first and last position, respectively - would be indistinguishable from a completely global alignment. However, starting and ending points of local sides of sequences and the transition of $alignment~states$, that is how and in which alignment columns it changes, depend on the given sequences and the scoring function; and of course on the given localities of the sequences.
+        \gapSmall
+        The more local ends there are, the more possible states arise. Global sequences (with zero local end) stay active and never change their state, thus the have no effect on the resulting number of $alignment~states$. Sequences with one local end can change once: either from $inactive$ to $active$ (\lL{} sequences) or from $active$ to $dead$ (\lR{} sequences) and totally local sequences (with two local ends) are enabled to change twice, therefore they affect the number of states very well. With that in mind, the number of all possible $alignment~states$ $h$ is computable in the following manner (Equ. \ref{equ:The Number of Possible Alignment States}). 
+        \newFormula{
+          h=1^{\ell_0} 2^{\ell_1} 3^{\ell_2}
+        }
+        {The Number of Possible Alignment States}
+        {The number of possible $alignment~states$ $h$ is heavily depending on the number of sequences and local ends. Here, $\ell_0$ stats for the count of sequences with $0$ local ends (global sequences) and the factor $1^{\ell_0}$ means, that they have no affect on $h$. So the variables $\ell_i$ stand for the number of sequences with $i$ local ends, where $i \in \{0,1,2\}$.}%
+        %
+      }
+      \newSubSubSection{Foreward Recursion}{
+        Naturally, the scoring table now not only depends on the lengths of aligned prefixes as usual, but also on the state of the alignment. For each step the foreward recursion does, only active sequences align whereby their aligned prefix length increases or a gap is introduced, or the $alignment~state$ is shifted. So whether the index of one sequence changes depends, on the one hand, on its state ($inactive$, $active$, $dead$) and on the other hand, on the usual aligning recursion. For a better handling of this, two variables will be introduced: $I \in \{1,...,n_i\}^N$, the \iP{}, holding the actual indices, rather the prefix lengths, of all sequences; and $\pi \in \{0,1\}^N$, the \pP{}, holding the ``index step" of each sequence at the actual alignment column. A $zero$ means that the aligned prefix of this sequence does not increase, or in other words: a gap is introduced for this sequence. Whereas the $one$ stands for the proceeding of this sequence. Furthermore, in the following, $N$ always stands for the number of all sequences and $n$ for the lengths of one sequence. So $s_i$ stands for sequence $i$ and $n_i$ for the lengths of $s_i$, with $i \in \{1,\dots,N\}$.
+        \newFormula{
+          S^{(A,D)}_I = \max \begin{cases}
+            \displaystyle\max_{\pi} \left[ S^{(A,D)}_{I-\pi} + s(\pi) \right] \\
+            \displaystyle\max_{(A',D')\pprec(A,D)} \left[ S^{(A,D)}_I + s^*\right]
+          \end{cases}
+        }
+        {The Foreward Recursion}
+        {In each step, the recursion for the optimal alignment score either appends an alignment column (upper case) or changes the state of the alignment (lower case). The variable $\pi$ (a non-null binary vector) denotes gap pattern in the last alignment column, the lower multi-index $I$ describes the lengths of the prefixes included in the alignment including this column. The scoring function $s(\,.\,)$ in the most general form depends on both gap patterns as well as the actual sequence entries. \citeNote{Retzlaff:18a}}%
+        %
+        So the entry $S^{(A,D)}_I$ of the matrix $S$ is calculated as the maximum of two terms. The first term is the maximum of all previous entries of the scoring table in the same state $(A,D)$ with the score $s(\pi)$ of the actual alignment column added to it, evaluating (miss)matches and gaps. The second term describes a state change from an immediate previous ($\pprec$) state to the actual one. So it is the maximum of the entries at position $I$ of all immediate previous states plus the score of a state change $s^*$, which is $zero$ in the following. Hence, the first term describes the a change in the \iP{} and the second one a change of the $alignment~state$. This means, that a state change does not entail the appending of a new alignment column and states can change multiple times without any impact on the lengths of aligned prefixes. This characteristic was used in the example of Figure \ref{fig:Ways of Aligning}, where in the left alignment scheme the $alignment~state$ changed from $\{1,2\}|\{\}$ to $\{1,2,3\}|\{\}$ before the first alignment column was created. And it changed to the final state after every character was already aligned. Furthermore, changing multiple times from an immediate predecessor state to its successor state without affecting the \iP{} means, that technically states can change to any of their following states ($\preceq$). This independence of state and index changes has to receive some further thoughts at the $implementation$ section.
+      }
+      \newSubSubSection{Backward Recursion}{
+      The backtracing for the optimal alignment is almost as for Smith-Waterman algorithm, except that it has not only to trace index changes, but state changes as well. In the first place, the backtracing algorithm has to find the final score, which is the bottom right entry $S^{(A,D)}_{(n_1,\dots,n_N)}$ of the scoring table for utterly global alignments. For local ends however, since they dot not have to end with the last character of their sequence, there final score can be at any position of this sequence. In order to get the optimal alignment, the maximum of all the possible final scores is taken (Equ. \ref{equ:Finding the Final Score}). 
+      \newFormula{
+      \max_{
+        i_j\in\{1,\dots,n_j\} \text{ if } s_j \text{ is \lL{}; }i_j=n_j \text{ else}
+      }
+      \left[S^{(A,D)}_{(i_1,\dots,i_N)}\right]
+      }
+      {Finding the Final Score}
+      {The final score is the maximum of all states $S^{(A,D)}_{(i_1,\dots,i_N)}$, where $i_j$ is either $n_j$ (for \gR{} sequences), or any of the sequences $s_j$ indices. With $j\in\{1,\dots,N\}$.}%
+      %
+      Once the final score is found, the backtracing algorithm has to find the path to the initial state through index and state changes. Index changes are tracked like in the Smith-Waterman algorithm, comparing previous scores with their corresponding $gap~patterns$ and resulting scores to the actual state. State changes are tracked very similar, by comparing the scores at the same position but of previous states to the actual score. If an predecessor score was found, it will be considered as actual one and the search for precursors begins anew until the initial state is reached. Finally, the path across the scoring table defines how the sequences are aligned and the final score is the score of this alignment.  
+      }
+    }
+  }
+  \newSection{implementation}{
+    This section takes the theoretical concepts and explanations of partially local alignments and considers them in the light of practical implementation. As a result, some adjustments have been made. Beyond the new point of view, this section also gives insight into the realization of the previously stated notions.
+    \gapSmall
+    It starts with the forward recursion, of which now exist two versions with different assets and drawbacks, adapted to the needs probabilistic computation and running time, respectively, including deeper explanations of the creation of the hasse graph and the handling and computing of the $alignment~states$. This is followed by a declaration of the implementation of the backtracking algorithm and some insights into the problems with the underlying basic aligning method and concluded with the description of the in-  and output specifications.
+    \gapBig
+    For a feasible implementation, some minor tweaks had to be introduced, effecting the scoring table, the foreward recursion and how it traverses through states, or better yet, scoring tables. In the preceding theory the talk has been of a scoring table that depends on the lengths of aligned prefixes and the state of the alignment. But actually it is much more handy to use multiple tables, namely one per alignment state. So scoring tables here only depend on the lengths of aligned prefixes, as usual, but there are $l$ (Equ. \ref{equ:The Number of Possible Alignment States}) of them (like states). Passing through states now means to switch the scoring tables associated with those states. Clearly this has to be factored in the realization of the backtracking and, of course, the forward recursion.
+    \gapBig
+    \newSubSection{Foreward Recursion}{
+      Two  variants  of  the alignment  algorithm  for  partially  local  alignments with additive gap costs have been implemented, based on Equ. \ref{equ:The Foreward Recursion} and Equ. \ref{equ:Unambiguous Foreward Recursion}, respectively. The probabilistic version, which has to be based on an unambiguous foreward recursion (Equ. \ref{equ:Unambiguous Foreward Recursion}), has a faster growing time complexity, since the states there are much more connected. The original version is faster, but not supposed to be extended to a probabilistic version. 
+      \gapSmall
+      By and large, both versions use multiple global alignments of subsets of the given sequences to achieve the capability of aligning sequences with any desired constellation of their localities. The partial alignments are calculated in a tree-like order that is given by the set-up of the localities and every alignment includes the results of previous alignments in its calculation.  
+      \gapBig
+      \newSubSubSection{Probabilistic Version}{
+        Beyond the already mentioned changes of the scoring table, which have only little effect on the procedure of both the recursions, this implementation of the foreward recursion differs in one additional, bit more weighty way, from the one that was shown in the preceding theory. The cause of that is, that the foreward recursion, as described by Equ. \ref{equ:The Foreward Recursion}, provides state and index changes, that are independent from each other. So states can change multiple times and these  transitions  can  be  performed in arbitrary order. This means, that there is more than one way for a particular alignment to be obtained. As a consequence, Equ. \ref{equ:The Foreward Recursion} cannot be used to compute partition functions over alignments, and hence to obtain a probabilistic version. In order to enable a probabilistic version, an unambiguous recursions had to be constructed, by  allowing  state  transitions  from $inactive$ to $active$ and from $active$ to $dead$ for a sequence $s_i$ only in conjunction with appending of a alignment column for which $\pi_i=1$. This entailment of state and index changes prohibits the possibility of multiple changes of $alignment~states$ in a row without the appending of an alignment column, and thus ambiguous ways to traverse those states as well. But restricting the amount of state changes per alignment column also limits the states that can be reached, since they can still only change to $immediate$ $successor$ states ($\pprec$). Previously, one state could change to any of its following states, because it was enabled to change multiple times through the relation of $immediate$ $successors$ (Equ. \ref{equ:The Properties of Immediate Predecessors of Alignment States}). Now that they can change only once, states have to be enabled to pass over to any following ($\preceq$) state directly (Equ. \ref{equ:Partial Order of Alignment States}).
+        \gapSmall
+        The coupling of state shifts with index changes has effect on the calculation of the scores. $S^{(A,D)}_I$ is now, as before, the maximum of all previous entries of the same matrix plus the score $s(\pi)$ of the actual alignment column, and, newly, the entries of previous scoring tables at the position of the previous states, also with the added score of the actual column, which depends on the respective \pP{}. So firstly, the forward recursion realizes the index change. It then maps the found previous indices into all the previous matrices. After all candidates are collected, the maximal score is chosen. If the chosen score originates from a previous table, an alternation of the $alignment~state$ has just happened.
+        \newFormula{
+          S^{(A,D)}_I ~ = ~~
+          \displaystyle\max_{\pi} \displaystyle\max_{(A',D')\preceq(A,D)}
+          \left[ S^{(A',D')}_{I-\pi} + s(\pi) + s^* \right]
+        }
+        {Unambiguous Foreward Recursion}
+        {Both cases of the prior foreward recursion (Equ. \ref{equ:The Foreward Recursion}) are combined now, leading to the coupling of state changes to the appending of an alignment column. Every recursion step now requires a change ($\pi$) in the $index~pattern$ $I$ and the $alignment~states$ may shifts to any of its following.}%
+        %
+        \newFigure{figures/ways_of_aligning_2.eps}
+        {0.95\textwidth}
+        {New Hasse Graph}
+        {The new $hasse~graph$, picturing the $\preceq$-relation and one additional final state (compare to Fig. \ref{fig:Ways of Aligning}) to allow all the same alignment steps as before. Initial states are illustrated with an incoming arrow and final states are bordered.}%
+        }%
+        %
+        This also affects the $hasse~graph$, which is showing all the states and all connections between them for one alignment (Fig. \ref{fig:Ways of Aligning}). For the previous recursion, the connections of the $hasse~graph$ where $\pprec$-transitions, but now it harbours all the $\preceq$-connections. The small example in Fig. \ref{fig:Ways of Aligning} then has only one additional connection, namely from the initial state to the final state. But for bigger alignments with more possible alignment states this often results in a heavy load of further connections. The new $hasse~graph$ with the $\preceq$-connections is, pretty much by definition (Equ. \ref{equ:Partial Order of Alignment States}), the transitive hull of the old one.
+        \gapSmall
+        An other effect of this change is that there are potentially multiple final states now. Since states can only change with the appending of an alignment column, they can not always change to the one final state at the end of the alignment. This would mean, \lR{} sequences could not be aligned to the end of the alignment (left scheme of Fig. \ref{fig:Ways of Aligning}). To allow this, final states are now all the states, where all \gR{} sequences are active (Fig. \ref{fig:New Hasse Graph}). The initial state, however, remains unchanged.
+        \gapBig
+      \newSubSubSection{Faster Version}{
+        A probabilistic version is not always needed and as a faster but still exact implementation, the original forward recursion (Equ. \ref{equ:The Foreward Recursion}) was used. The $hasse~graph$ with $\preceq$-connectivity naturally contains fewer connections than its transitive hull with all the $\pprec$-connections. Thus, the faster forward recursion performs many fewer look-ups into previous scoring tables than the probabilistic version. 
+        \gapSmall
+        The score $S^{(A,D)}_I$ is now, once again, the maximum of all previous entries of the actual scoring table and the scores of previous ($\pprec$) tables. But, since the state change is now again independent of the \iP{}, it only needs to map the actual position into previous matrices and not all the candidates of the actual one. Therefore, this version is faster, albeit, according to Equ. \ref{equ:The Foreward Recursion}, ambiguous. In the following, however, the focus is on the probabilistic version.%
+        \gapSmall
+        Both versions of this implementation only differ in their interior representation of the hasse graph, thus also in the number of and the way they perform look-ups into previous scoring tables; and in the core forward recursion. Having said this, the backward recursion and the basic aligning algorithm stay the same in both the versions.
+        }%
+      \gapBig
+      \newSubSubSection{Generation of the Hasse Graph}{
+        The given set-up of localities also defines the $hasse~graph$. As already mentioned, there is one initial state, namely the state where all \gL{} sequences are $active$ and none is $dead$. The final state is the one where all \gR{} sequences are $active$ and all others are $dead$ (fast version), or all the states where every \gR{} sequences is $active$ (probabilistic version), respectively. All the other states result from the initial state by viable $activations$ and $deactivations$ of sequences. $Local~left$ sequences can be activated and \lR{} ones can be killed. If one $alignment~state$ can be reached from another $alignment~state$ by changing the state of only one sequence, then these $alignment~states$ are connected via a $\pprec$-connection. If it needs one or more sequence states to change, then both states are connected via a $\preceq$-connection.
+        \gapSmall
+        Having that in mind, the implementation of the generation of the $hasse~graph$ can be divided into three parts: initialization (finding of the initial state), activation of all activatable sequences in every possible way, and finally the finishing of all finishable sequences for every previously found state.
+        \newFigureCode{%
+          1\ \hspace*{2em}\textbf{generateHasseGraph}(sequences)\\
+          2\ \hspace*{2em}\hspace*{2em}states := \{\};\\
+          3\ \hspace*{2em}\hspace*{2em}finishable := \{\};\\
+          4\ \hspace*{2em}\hspace*{2em}activatable := \{\};\\
+          4\ \hspace*{2em}\hspace*{2em}initialState := (\{\},\{\});\\\\
+          5\ \hspace*{2em}\hspace*{2em}\textbf{for} (sequence $\in$ sequences)\\
+          6\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if} (sequence.isGlobalLeft)\\
+          7\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}initialState.addToActive(sequence);\\
+          8\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{else}\\
+          9\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}initialState.addToReady(sequence);\\
+          10\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if} (!sequence.isGlobalRight)\\
+          11\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}finishable.add(sequence);\\
+          12\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if} (!sequence.isGlobalLeft)\\
+          13\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}activatable.add(sequence);\\
+          14\hspace*{2em}\hspace*{2em}states.add(initialState);\\\\
+          15\hspace*{2em}\hspace*{2em}activate(states, activatable);\\
+          16\hspace*{2em}\hspace*{2em}finish(states, finishable);\\\\
+          17\hspace*{2em}\hspace*{2em}\textbf{return new} HasseGraph(states, startState, sequences);\\
+        }
+        {0.9\columnwidth}
+        {Code: Generation of The Hasse Graph}
+        {This (pseudocode) method describes the creation of the $hasse~graph$ with all of its states and connections. Firstly, the initial state is found and then, by viable finishing and activation of sequences, all the remaining possible alignment states are generated. The connections between the $alignment~states$ are created in the same run.}%
+        %
+        Starting with the initial state $(\{1,2\}\{\})$ of the example from Fig. \ref{fig:New Hasse Graph}, activating all activatable sequences, that are all \lL{} sequences, results in one new state, namely $(\{1,2,3\}\{\})$. Sequence $s_3$ is the only \lL{} one, thus it was activated. However, if the initial state was $(\{1\}\{\})$ instead and both the sequences $s_2$ and $s_3$ were \lL{}, then, by activation, three new states would arise: $(\{1,2\}\{\})$, $(\{1,3\}\{\})$, $(\{1,2,3\}\{\})$. Back in the example of Fig. \ref{fig:New Hasse Graph}, all the remaining states are created by finishing all finishable sequences for every state in and every possible way. Sequence $s_2$ is the only \lR{} one, hence the only one that can be activated, such that the two missing states come up.
+        \gapSmall
+        The connections between the states are created directly upon the creation of the states in the methods \texttt{finish} and \texttt{activate}. Since the creation of this states and their connections does not have noticeable effect on the overall running time, both the $\pprec$- and the $\preceq$-connections are generated and retained within the states of the $hasse~graph$.
+        }
+      \gapBig
+      \newSubSubSection{The Game of Tables}{
+        Each state then has a corresponding scoring table of its active sequences, that is representing alignment. The active sequences of each state are aligned globally, but with some extra look-ups into previous scoring tables. According to Equ. \ref{equ:Unambiguous Foreward Recursion}, each entry of the scoring table is the maximum of the previous entries of the same matrix (3 for a two dimensional) and the entries of the previous matrices at the position of the previous entries (Fig. \ref{fig:Scores and Candidates}). So the alignment corresponding to the initial state (Fig. \ref{fig:New Hasse Graph}), for instance, is a global alignment of the two sequences $s_1$ and $s_2$, since the initial state has no previous states. 
+        \newFigure{figures/matrices.eps}
+        {0.95\textwidth}
+        {Scores and Candidates}
+        {The four pictured scoring tables correspond to the states shown in fig. \ref{fig:New Hasse Graph}. Those tables also visualize some exemplary score look-ups. Black boxes with a number in it characterize the position of the score that has to be calculated. Gray boxes signify the previous entries, involved in the calculation of the score (black box) with the corresponding number in it.}%
+        %
+        The alignment of the state $(\{1\}\{2\})$ contains only one sequence $s_1$, thus the corresponding scoring table has only one line and would be filled with zeros all the way through. But since the look-ups into previous states, the initial state in this case, are required, some other figures can arise. For each position $i_1\in\{1,\dots,n_1\}$ of the alignment $a_1$ of the state $(\{1\}\{2\})$, the forward recursion has to consider the corresponding entry or entries of the previous states or scoring tables, respectively. In this case, there is only one previous state, the initial state with its alignment be $a_{1,2}$ and its positions $\{1,\dots,n_1\}\times\{1,\dots,n_2\}$. But looking up the one-dimensional position $i_1$ in the two-dimensional table of $a_{1,2}$ does not return only one entry, but many, namely all the positions $(i_1,x)\in(\{1,\dots,n_1\}\times\{1,\dots,n_2\})$, where $i_1$ is fixed and $x\in\{1,\dots,n_2\}$. However, obtaining multiple candidates is not a problem. For the optimal alignment, the maximum of those candidates is taken and written at position $i_1$ of the scoring table of $a_1$. So if the look-up reaches into a scoring table with ``unknown" sequences or indices, respectively, the algorithm sticks to the positions of sequences it knows, and iterates over the new ones, collecting the candidates of which it takes the maximum then. 
+        \gapSmall
+        This can also happen the other way around, when the final state looks back into the state $(\{1\}\{2\})$ for instance. There is a two dimensional alignment $a_{1,3}$ of the sequences $s_1$ and $s_3$ for the final state. Mapping a two-dimensional position $(i_1,i_3)\in(\{1,\dots,n_1\}\times\{1,\dots,n_3\})$ into the one-dimensional table of $a_1$ returns the position of the matching sequence $s_1$, namely $i_1\in\{1,\dots,n_1\}$. So for look-ups into states with fewer active sequences, the algorithm just ignores the superfluous ones. 
+        \gapSmall
+        A more general version of this problem occurres when both cases are combined -- when sequences are missing and new ones join in. One example of this is the look-up of the final state into the initial one (Fig. \ref{fig:New Hasse Graph}), where $s_3$ is missing and $s_2$ is new. Mapping a position $(i_1,i_3)\in\{1,\dots,n_1\}\times\{1,\dots,n_3\}$ into the space $\{1,\dots,n_1\}\times\{1,\dots,n_2\}$ of the alignment $a_{1,2}$ of the initial state, again, does not return only one position. A preserved index (or sequence) is $s_1$ so the algorithm keeps its position in mind. $s_3$, however, has become superfluous in the context of the space of the initial state, which is made up by the sequences $s_1$ and $s_2$, hence it will be ignored. $s_2$ is new in comparison to the final state, so the recursion will iterate over all its positions. Therefore the resulting positions are $(i_1,x)$, where $x\in\{1,\dots,n_2\}$, naturally in the space of $a_{1,2}$.
+        \newFigureCode{%
+          1\ \hspace*{2em}\textbf{maxCandidateOf}(actualState, previousState, actualIndexPattern)\\
+          2\ \hspace*{2em}\hspace*{2em}matchingIndices := actualState.indices $\cap$ previousState.indices;\\
+          3\ \hspace*{2em}\hspace*{2em}\textbf{if} (matchingIndices == $\emptyset$)\\
+          4\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{return} maxScore(previousState.scoreMatrix);\\
+          5\ \hspace*{2em}\hspace*{2em}runningIndices := previousState.indices $\setminus$ actualState.indices;\\
+          6\ \hspace*{2em}\hspace*{2em}matchingIndexPattern := actualIndexPattern $\cap$ matchingIndices;\vspace{1em}\\
+          7\ \hspace*{2em}\hspace*{2em}candidate := matchingIndices $\cup$ runningIndices;\\
+          8\ \hspace*{2em}\hspace*{2em}maxScore := previousState.scoreMatrix.scoreAt(candidate);\\
+          9\ \hspace*{2em}\hspace*{2em}\textbf{for} (every constallation of running indices) \\
+          10\hspace*{2em}\hspace*{2em}\hspace*{2em}score := previousState.scoreMatrix.scoreAt(candidate);\\
+          11\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if} (score > maxScore)\\
+          12\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}maxScore := score;\vspace{1em}\\
+          13\hspace*{2em}\hspace*{2em}\textbf{return} maxScore;\\
+        }
+        {0.9\columnwidth}
+        {Code: Tabel Look-Ups}
+        {This (pseudocode) function describes how previous-candidates of an actual \iP{}, that is the position at the scoring table of the actual state, are collected. For that, the actual state and the \iP{}, marking the actual position, and the previous state, where the candidates shall be found, are needed. After the identifying of matching and ``running" (new) indices, all candidates are collected by iterating over all possible constellations of the running indices. Returned is the maximal candidate, the candidate with the best score.}%
+        %
+        The pseudocode of the function \texttt{maxCandidateOf} (Fig. \ref{fig:Code: Tabel Look-Ups}) clarifies the general implementation of the finding of the candidates. Note, that it only returns the maximal previous-candidate of $one$, namely the given, previous state. To get the true maximal ancestor, this function has to be executed for all previous states, which is convenient, since the original state has to be tracked. This method is used in the forward recursion to collect previous candidates in order to calculate the actual state, as well as in the backward recursion to find the true ancestor and the corresponding previous state and scoring table of the actual position.
+        \gapSmall
+        Three attributes are needed to find the maximal candidate in the given previous state: the actual state, the \iP{} of the actual state and, naturally, one previous state. Matching indices then are those, which exist in both the list of indices of the actual state and in the list of the previous state. If there is no matching index, the subsequent iteration over the running indices would just go through every position of the previous scoring table, so it is plainer to skip the incidental initialization to return the maximal candidate ``directly". The running indices are the ones, that occur in the previous state but not in the actual state.
+        \gapSmall
+        Before the iteration of all possible constellations of the running indices starts, the candidate is set-up by combining the matching indices with the new ones. The values of the matching indices are kept, while the values of the running indices are set to one. The maximal Score is initialized with the score of the very first candidate. If there are no running indices, the candidate is made up of matching indices, which are fixed, so the subsequent iteration is skipped and the initial value of the maximal score is returned. If the iteration is not skipped, every accuring candidate (position) is checked for its value (score) in the previous scoring table and if this value is higher that the maximal score, then the maximal score is updated. The maximal score is stored in the \texttt{maxScore}-value, at the latest when the iteration has finished, and is ready to get returned.
+        \newFigureCode{%
+        1\ \hspace*{2em}\textbf{compute} (hasseGraph)\\
+        2\ \hspace*{2em}\hspace*{2em}statesToCompute := hasseGraph.states;\\
+        3\ \hspace*{2em}\hspace*{2em}computeState(hasseGraph.initialState);\\
+        4\ \hspace*{2em}\hspace*{2em}statesToCompute.remove(hasseGraph.initialState);\\\\
+        5\ \hspace*{2em}\hspace*{2em}\textbf{while} (|statesToCompute| > 0)\\
+        6\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{for} (state $\in$ statesToCompute)\\
+        7\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}computable = true;\\
+        8\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{for} (previousState $\in$ state.previousStates)\\
+        9\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if} (previousState $\in$ statesToCompute))\\
+        10\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}computable := false; break;\\
+        11\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if} (computable)\\
+        12\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}computeState(state);\\
+        13\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}statesToCompute.remove(state);\\
+        }
+        {0.9\columnwidth}
+        {Code: Order of the Computation of Alignment States}
+        {This (pseudocode) method describes the computation of all the $alignment~states$ of a given $hasse~graph$ in a viable order. To compute one scoring table, the tables of all previous states have to be computed. The computation starts with the initial state and then iterates over all states until a computable state is found. After the filling of the corresponding scoring table, the chosen state is removed. This is repeated until every state is computed.}%
+        %
+        The execution of the function \texttt{maxCandidateOf} for each position of each partial alignment, to call in results of previous scoring tables to the traditional computation, is what makes up the high exponential growth of time complexity. There is one partial alignment per $alignment~state$. With a sequence length of $l$, $N$ sequences and $h$ $alignment~states$ (Equ. \ref{equ:The Number of Possible Alignment States}), the overall running time (Equ. \ref{equ:Overall Running Time}) is resulting from the evaluation of the forward recursion, that requires $O(2^N)$ score computations for each transition between columns ($l^N$) and states ($h^2$). 
+        \newFormula{O(2^Nl^Nh^2)}
+        {Overall Running Time}
+        {The (maximal) overall running time is mainly made up by the forward recursion, requiring $2^N$ score computations for each transition between the (maximum of) $l^N$ columns and $h^2$ states.}%
+        %
+        The memory requirements, however, are a bit more convenient. With one index variable iterating over each of the $N$ sequences of length $O(n)$, they are $O(n^N)$ for each state.
+        \newFormula{O(n^Nh)}
+        {Overall Memory Usage}
+        {The overall Memory Usage is mainly made up by the creation of one scoring table of the size $n^N$ per alignment state $h$.}%
+        %
+        So scoring tables need the results of previous $alignemnte~states$ to get their scores computed. Therefore, the tables can not be initialized in an arbitrary order. To compute one partial alignment, all the tables of previous states have to be filled already. That is why the initialization starts at the initial state, since it has no previous states, and then checks the remaining states for states that are ready to compute, that is when all their previous states have been computed. Breadth-first on the $hasse~graph$ search, at least for the $faster~version$ with its $\pprec$-connections, would return a viable order. But for the general implementation, the realization of the method, that creates a valid order of $alignment~states$, is rather naive (Fig. \ref{fig:Code: Order of the Computation of Alignment States}).
+        \gapSmall
+        A more clever transposition of this method would fasten up the generation of the $hasse~graph$. But in comparison to the overall running time, which is grooving exponentially to the number of sequences $N$ and the count of their local ends, this would have negligible impact, since the time complexity of the naive method is approximately in $O(l^2)$ already.
+      }
+    }
+    \newSubSection{Backward Recursion}{
+      The backward recursion starts right there, where the forward recursion ends -- at the fully computed final state(s) and it does not differ from the probabilistic to the fast version of this implementation, since both versions create the same tables. Its first action is to find the (maximal) final score of the final state, or the multiple final states, respectively. For an utterly global alignment, the final score is found at there bottom right of the scoring table. Though the indices of sequences with $right$-$local$ ends are not fixed. However, partial aliments, as mentioned earlier, are always global, so the final score is always to be found an the bottom right. The one exception are alignments of \lR{} sequences only, where no sequence has to stay active to the end of the alignment. For these alignments, every state is a final state (probabilistic version) and every score of their scoring tables has to be considered as final, too. If there are multiple final scores, a maximal one is chosen.
+      \newFigureCode{%
+        1\ \hspace*{2em}\textbf{backtrack} (hasseGraph)\\
+        2\ \hspace*{2em}\hspace*{2em}actualState := hasseGraph.getMaxFinalState();\\
+        3\ \hspace*{2em}\hspace*{2em}iPattern := $\left[\right];$\\
+        4\ \hspace*{2em}\hspace*{2em}alignedSequences := $\left[\right];$\\\\
+        5\ \hspace*{2em}\hspace*{2em}\textbf{if} (actualState.isFullyRightLocal())\\
+        6\ \hspace*{2em}\hspace*{2em}\hspace*{2em}iPattern := actualState.getMaxScoreIndices();\\
+        7\ \hspace*{2em}\hspace*{2em}\textbf{else}\\
+        8\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{for} ($0 ~ \leq ~ i ~ <$ sequences.length)\\
+        9\ \hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}iPattern.set(i, hasseGraph.sequences[i].getLength());\\\\
+        10\hspace*{2em}\hspace*{2em}\textbf{while} (iPattern $\neq$ (0,0,\dots,0))\\
+        11\hspace*{2em}\hspace*{2em}\hspace*{2em}m := actualState.ScoreMatrix;\\
+        12\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{for} (piPattern $\in$ everyPossiblePiPattern)\\
+        13\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if}(m.get(iPattern + piPattern) == m.get(iPattern) - columnScore))\\
+        14\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}attatch(alignedSequences, Sequences, iPattern, piPattern);\\
+        15\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}iPattern += piPattern;\\
+        16\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}piPattern.reset();\\\\
+        17\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{for} (state $\in$ actualState.getPrevious())\\
+        18\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}prevIPattern = getMaxPrevIndex(actualState, state, iPattern);\\
+        19\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}piPattern = getPiPattern(actualState, state, iPattern, prevIPattern);\\
+        20\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{if}(m.get(prevIPattern) == m.get(iPattern) - columnScore))\\
+        21\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}attatch(alignedSequences, Sequences, iPattern, piPattern);\\
+        22\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}iPattern := prevIPattern;\\
+        23\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}piPattern.reset();\\
+        24\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}actualState := state;\\
+        25\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\hspace*{2em}\textbf{break};\\\\
+      }
+      {0.9\columnwidth}
+      {Code: The Backtracking}
+      {This (pseudocode) method depicts the backtracing algorithm. Firstly, it finds the final state with the maximal final entry. It then checks whether the actual state contains only \lR{} sequences. If so, the maximal final entry is found somewhere in the matrix. If the actual scoring table is not made up of only \lR{} sequences, the final score is found at the bottom right. When the final score is found, previous entries of the same matrix are examined in order to find matching scores in a recursion-like fashion. }%
+      %
+      Once the final score is found, the backtracing algorithm starts to collect all the previous scores from the actual and previous matrices by use of the method shown in Fig. \ref{fig:Code: Tabel Look-Ups}. It then compares the previous scores to the actual one and also takes the score of the actual alignment column into account to find the correct preceding score with its \iP{} and the corresponding $alignment~state$. As soon as the ancestor is found, the algorithm updates its actual \iP{} and $alignment~state$ to the new ones and starts to collect previous scores from anew. This is repeated until the initial score of the initial state is reached. The tracked path reveals an optimal alignment of the given sequences, that is an alignment with the maximal score.
+    }
+    \newSubSection{Basic Aligning}{
+      Up to here, much has been said about arbitrary locality of alignments, that is achieved by the combining multiple alignments subsets of the given sequences, about aligning with a generalization of the standard global alignment algorithm (Needleman-Wunsch), that takes results of previous scoring tables into account, and about $alignment~states$ and how they relate to each other. But, in fact, one major problem of this implementation was the finding of a proper realization of the general global alignment algorithm, that enables the alignment of a variable number of $N$ sequences.
+      \gapSmall
+      The first obstacle that had to be overcome was the dynamic creation of an $N$-dimensional array, that represents the scoring table of an $N$-way alignment.
+      Which, in \texttt{java}, is not as easy as it may sounds for some \texttt{C} or \texttt{haskell} natives. Since there is no (elegant) way in \texttt{java} to generate an arbitrarily nested array, and to avoid cumbersome code, the choice fell on the implementation of a ``flat" matrix, that is a one-dimensional array, combined with a mapping ${\{1,\dots,n_i\}^N} \rightarrow {\{1,\dots,\prod_i{n_i}\}^1}$ from an index-list of length $N$ to a single index. The resulting flat array has the same amount of entries as the $N$-dimensional matrix would have, but, since an integer is needed to reference those entries, their number is capped the highest integer in \texttt{java}, which is $2^{31}\texttt{-}1$. Yet, especially for the test cases, the size limit of scoring tables has not been a big deal, because the fast-growing time complexity often kicks in much faster. The computation of this mapping, however, takes only $O(N)$ time, as the usual look-up in an $N$-dimensional array also does, but with some fixed extra effort (Fig. \ref{fig:Code: Index Mapping}).
+      \newFigureCode{%
+       1\ \hspace*{2em}\textbf{getFlatIndex} (int[] indices)\\
+       2\ \hspace*{2em}\hspace*{2em}flatIndex := 0;\\
+       3\ \hspace*{2em}\hspace*{2em}multiplier  := 1;\\\\
+       4\ \hspace*{2em}\hspace*{2em}\textbf{for} ($0~\leq~i~<$ indices.length)\\
+       5\ \hspace*{2em}\hspace*{2em}\hspace*{2em}flatIndex += multiplier * indices[i];\\
+       6\ \hspace*{2em}\hspace*{2em}\hspace*{2em}multiplier *= lengths[i];\\\\
+       7\ \hspace*{2em}\hspace*{2em}\textbf{return} flatIndex;\\
+      }
+      {0.9\columnwidth}
+      {Code: Index Mapping}
+      {This (pseudocode) method shows the mapping from a multidimensional index to a single index. Each value of the given index-list is added to the index of the flat matrix with an increasing order of magnitude.}%
+      %
+      The second obstacle was the initialization and filling of those scoring tables for an arbitrary number of given sequences. The initialization of a two-dimensional global alignment is easy (Tab. \ref{tab:Initialization of Scoring Tables}), since it only has two sides which border the top-left corner and have to be prefilled. For alignments of three sequences, the scoring table, is three-dimensional and it has three sides, flanking the top-left corner, which are two-dimensional themselves. So to initialize a three-dimensional scoring table, the "upper'' three of its two-dimensional sides have to be pre-computed. These sides can then be seen as independent alignments of the two corresponding sequences, therefore, to compute them, their edges have to be prefilled. That means, an alignment of $N$ sequences makes up an $N$-dimensional scoring table containing $\binom{N}{N-1}$ $N\texttt{-}1$-dimensional sides, that border the top-left corner. For initialization, those $N\texttt{-}1$-dimensional sides then are computed like separate alignments, so their sides have to be initialized the same way. After the prefilling of the edges, the remaining entries are computed by counting up the indices in the following manner: for each run of the loop, the last index is incremented. If one index $i_j$ exceeds its maximal value $n_j$, all following indices $i_k,~k\geq j$ are set to $1$ and the previous index $i_{j-1}$ is incremented. The loop ends when every index has reached its maximal value. That way of counting is very similar to usual counting, just that every site of the number has its own upper ceiling. And counting like this ensures that for every newly occurring position the previous positions, needed to compute the actual one, are handled already.
+    }
+    \newSubSection{In- and Output}{
+      In order to read and ''understand" the given sequences and locality specification, a well-defined interface is needed. The presented implementation is able to parse sequences from \texttt{fasta} files. The \texttt{fasta-}format is commonly known and easy to understand, but does not provide any possibility to store information on localities. Since potential users of this implementation should not be forced to edit their \texttt{fasta-}files or to create new files containing the sequences which are already given in a \texttt{fasta-}file, a new independent \texttt{fasta-}like file was introduced, to include locality information. 
+      \newFigureOwn{
+      \texttt{%
+        >s1~~~~~~~~~~~~~~~~~~~~~~~~~~\\ 
+        GCGCGCGCGCCATCATCATCATATATAT\\
+        >s2~~~~~~~~~~~~~~~~~~~~~~~~~~\\
+        GCCCGCGCGCCATCTTCAGGGCGA~~~~~\\
+        >s3~~~~~~~~~~~~~~~~~~~~~~~~~~\\
+        CTTTCTTAGTCATCATCATATATTTAT~~\\}
+      }
+      {0.9\columnwidth}
+      {Example Sequence Fasta File}
+      {A file containing the three sequences formatted in the commonly known \texttt{fasta-}format. (Corresponding to the example of Fig. \ref{fig:Ways of Aligning})}%
+      %
+      The file, specifying the localities, is additional and follows the \texttt{fasta-}scheme: for each sequence it contains the sequence name, that is introduced in a new line, with a leading ''\texttt{>}" and followed by a line break. The subsequent line then contains the actual sequence. However, the ''actual sequence" here are two occurrences of \texttt{true} or \texttt{false}, separated by a tab. The two terms represent the $globality$ of each end of the sequence. The first term determines the $globality$ of the left end and the second one stands for the $globality$ of the right one. The Names of the sequences in the sequence- and the locality-file have to match. Every missing information of localities is interpreted as ''\texttt{true}", thus global. So if the localities file is missing, the result is a totally global alignment. 
+      \newFigureOwn{
+      \texttt{%
+        >s1~~~~~~~~~~~~~\\ 
+        true ~~~~ true~~\\
+        >s2~~~~~~~~~~~~~\\
+        true ~~~~ false\\
+        >s3~~~~~~~~~~~~~\\
+        false ~~~ true~~\\}
+      }
+      {0.9\columnwidth}
+      {Example Localities Fasta-Like File}
+      {asd. (Corresponding to the example of Fig. \ref{fig:Ways of Aligning})}%
+      %
+      If we still stick to the example of Fig. \ref{fig:Ways of Aligning}, then the three sequences are given in the sequence file (Fig. \ref{fig:Example Sequence Fasta File}) and the localities-file would look like Fig. \ref{fig:Example Localities Fasta-Like File}. The first sequence is utterly global, indicated by both the occurrences of ''\texttt{true}" under the name \texttt{s1} of the first sequence. And, as already shown, the second sequence is local at the left side, while the third one is local at the right side.
+    }
+  }
+  \newSection{Benchmarking}{
+    The benchmarking of a tool that produces partially local alignments against other common alignment tools has opened the door for some difficulties in the creation and analysis of comparable alignments. The facts, that most oft the multiple sequence alignments are aligned globally and that the concept of predefined localities is totally new, have led to a manual creation of locality files. e comparison of position shift error of (partially) local alignments to global alignments has shown to be tricky.
+    \gapSmall
+    Benchmarked was the running-time of both the \software{} versions against three other alignment tools, that align globally; the accuracy (AC) and the position shift error (PSE), which both do not differ between the probabilistic and the fast version of \software{}.
+    81 (?) alignments from two well known benchmark protein databases have been used to test and evaluate \software{}. \texttt{OXBench}  \citeNote{oxbench} is a completely automatically generated database whereas \texttt{BAliBASE} \citeNote{balibase} has a manual step for cleaning initial alignments before the release. Both benchmark sets are intended for global multiple alignments and do naturally not state any useful information about localities, besides considering them as global. 
+    \newFigure{figures/plots/localitiesDistribution.eps}
+    {0.5\textwidth}
+    {The distribution of Localities}
+    {Frequency distribution of the number of local ends in the in the data set of benchmark alignments. Only a small fraction of the alignments is global, while most test alignments have 2--6 local ends.}%
+    % 
+    In order to align the given sequences partially local, a locality file is needed, and for the creation of it, each alignment of the \texttt{OXBench} and \texttt{BAliBASE} data set, that was used for the benchmarking, had to be examined. The localities where then derived from the global alignment in the following easy manner: each sequence that had leading gaps was considered to be \lL{} and each sequence that hat had a suffix of gaps was considered to be \lR{}. 
+    \gapSmall
+    One could now argue, that the inferred data of localities from the already aligned sequences provides some extra information to the alignment process of \software{}. But, looking carefully reveals, that the statement of one sequence to be local at one end, does not add as much information as the statement, that one sequence is global, does. Actually, by the removing the condition of globality from some ends of sequences, the amount of information provided to the alignment process is reduced. This can also be seen in Equ. \ref{equ:Overall Running Time} and Equ. \ref{equ:The Number of Possible Alignment States}, which shows, that the overall running time increases drastically with a rising number of local ends of sequences. This is why the analysis of running time was not only separated for the both versions of \software{}, but also for less than four and more than three local ends. Figure \ref{fig:The distribution of Localities} shows the distribution of the number of local ends per alignment.
+    \gapSmall
+    Speaking of running time, figure \ref{fig:Running Times} gives an overview of the execution time of \software{} compared to the three other alignment tools \texttt{T-Coffee}, \texttt{MAFFT} and \texttt{ClustalW}. It is easy to see, that \software{} generally occupies much more time than the other tools.
+    \newFigure{figures/plots/times_Var_endSep.eps}
+    {0.75\textwidth}
+    {Running Times}
+    {Running time of \software{} for alignments with at most three local ends (e.g. \softwareSmaller{}) and for alignments with more than three local ends (e.g. \softwareBigger{}) compared to heuristic global aligners (\texttt{T-Coffee}, \texttt{MAFFT}, and \texttt{ClustalW}) that are commonly used in large-scale bioinformatics applications. The label \software{} refers to Eq.~(\ref{equ:Unambiguous Foreward Recursion}),  \softwareS{} indicated the implementation following Eq.~(\ref{equ:The Foreward Recursion}).}%
+    %
+    One obvious reason of this is, that the other three alignment tool assume all sequences to be global, while \software{} does not. Moreover, \software{} is an exact aligning tool, whereby \texttt{T-Coffee}, \texttt{MAFFT} and \texttt{ClustalW} make use of heuristics. And one more, but sublte cause of the gaping difference between \software{} and the three other tools, especially when it comes to the maximal time of execution, is, that the three other alignment tool have a longer history of testing and optimization than the brand-new software \software{}.
+    \gapSmall
+    But not only the occupied time grows in average, also the range between the $1\%$ and the $99\%$ percentile has undergone a significant spread, since, only for \software{}, the running time is coupled with the number of local ends. Short and global alignments are aligned comparably fast as with \texttt{MAFFT}, conversely more local alignments take longer. Note, that the execution time for \softwareBigger{} (more than 3 local ends) is generally higher than for \softwareSmaller{} (less than 4 local ends) for both versions of \software{}. Difference can also be seen between the boxes of \software{} (probabilistic version) and \softwareS{} (faster version), as \softwareS{}, as intended, needs significantly less time than its probabilistic version. 
+    \gapBig
+    Besides the comparison of runtime, the accuracy has been benchmarked. Figure \ref{fig:The Accuracy} provides a general view of the accuracy ratings of \software{}, \texttt{T-Coffee}, \texttt{MAFFT} and \texttt{ClustalW}. Since the aligning results of \software{} and \softwareS{} do neither differ in score nor in the content of the scoring tables, thus also not in the resulting alignments, the benchmarking of accuracy was only carried out with the probabilistic version. Same applies to the benchmarking of the position shift error. 
+    \newFigure{figures/plots/ac.eps}
+    {0.6\textwidth}
+    {The Accuracy}
+    {Accuracy of \software{} compared to the heuristic global alignment tools \texttt{T-Coffee}, \texttt{MAFFT}, and \texttt{ClustalW}.}%
+    %
+    The accuracy was measured by dividing the number of correctly aligned positions of the alignment by the lengths of the alignment (Equ. \ref{equ:The Accuracy Rating}). Thus, it is the average accuracy of the whole alignment. The number of correctly aligned positions can be calculated in two different ways: just by iterating through the alignment and counting them, or by counting falsely aligned positions and subtracting them from the alignment. For the sake of not punishing local, consequently later starts of sequences, introduced by \software{}, prefixes and suffixes of alignments, that contain inactive sequences, where not included in the calculation of AC, since it is not easy to decide whether $not$ aligning one sequence is right or false. This naturally biases both the length of the alignment (used in the calculation of accuracy) and the counted falsely aligned sites.      
+    \newFormula{
+    \mbox{AC} ~ = ~ \frac{(m-e)}{m}
+    }
+    {The Accuracy Rating}
+    {The average accuracy of one alignment is calculated as above, where $m$ is the length of the alignment and $e$ is the number of columns deviating from the reference alignment}%
+    %
+    Admittedly, these adaptions have impact on the resulting accuracy score. The decision where local sequences start or end, respectively, is made by the resulting maximal score, hence by how well the subsequent characters match with the other sequences. So \software{} only aligns well-matching sections of local sequences and leaves out prefixes respectively suffixes, that do not fit sufficiently well. Aligning only the best matching parts of sequences and also considering only these segments of the alignments in the calculation, surly constitutes a high-ground for \software{}.
+    \gapSmall
+    But the benefits that \software{} has here, against the three other alignment tool, is a superiority that every (partially) local alignment tool will have against global alignment tools (in terms of accuracy). In truth, this is what makes up partially local alignment tools: finding conserved, thus highly related subsequences; and the abandonment of deviating prefixes and suffixes. Therefore the measurement should also concentrate on those coinciding regions. 
+    \gapSmall
+    Having this in mind, the comparison of completely global with partially local alignments may remains questionable anyhow. But there is no other partially local alignment tool. 
+    \gapBig
+     The position shift error ($\mbox{PSE}$) as defined by \citet{oxbench} serves as an alternative measure of alignment accuracy. Considered are the relative positions of each pair of (miss)matching characters for every pair of the aligned sequences of the reference alignment compared to the same positions in the test alignment. More precise, the positions $i_k$ and $i_l$ of two (miss)matching characters of the two reference sequences $s_k$ and $s_l$ are compared to the positions $i_k$ of sequence $s_k$ and its matching position ${i_l}\dotted$ of $s_l$ of the two corresponding aligned sequences of the test alignment. The positions are assigned to the characters of the alignment by iterating over each aligned sequence, increasing the value of ``position" by $1$ after each character and by $0.5$ after a gap. So, introducing new gaps in the test alignment or miss-matching characters which are not matched in the reference alignment causes a distortion of these position (values) compared to the reference. The shift $\delta=|i_l-{i_l}\dotted|$ between the two positions $i_l$ and ${i_l}\dotted$ is retained and added together for each (miss)matching pair and each par of sequences. For further details, \cite{oxbench} is referred. 
+    \newFormula{
+      \mbox{PSE} ~~ = ~~ \sum_{k=1}^{N-1} ~ \sum_{l=k+1}^{N} ~ \frac{
+        \sum_{i=1}^{m_{s_ks_l}} ~~ |i_l - {i_l}\dotted|
+      }{
+        m_{s_ks_l}
+      }
+    }
+    {The Position Shift Error}
+    {asd}%
+    %
+    The $\mbox{PSE}$ is the sum of the pairwise position shifts, which are the average position shift of the sequence pair then again. However, the definition provided by \citet{oxbench} is rather vague and understandably does not deliver an approach for local sequences. So again, for the sake of not punishing local starts and ends of sequences, 
+    \newFigure{figures/plots/pse.eps}
+    {0.6\textwidth}
+    {The Position Shift}
+    {Position shift error of \software{} compared to the heuristic global aligners \texttt{T-Coffee}, \texttt{MAFFT}, and \texttt{ClustalW}.}%
+    %
+    \newpage
+  }
+  \newSection{Discussion}{
+    asd
+    \comment{
+      verbesserungen möglich:\\ 
+      - order of computation of alignment states\\
+      - flat matrix\\
+      - ``fine grained parallelization"
+    }
+  }
+}
+\makeReferences{bib}
+\makeStatutoryDeclaration
+
+\end{document}
